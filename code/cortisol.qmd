@@ -1,0 +1,418 @@
+---
+title: "Analysis of stress in wild rodents"
+
+# date: today
+date-format: DD MMMM, YYYY
+
+author:
+  - name: Serge Morand
+    id: jc
+    orcid: 0000-0003-3986-7659
+    email: serge.morand@cnrsr.fr
+    affiliation: 
+      - name: HealthDEEP-CNRS
+        city: Bangkok
+        country: Thailand
+        url: https://www.healthdeep.org
+        ror: https://ror.org/00r4taj88
+
+abstract: > 
+  A short tutorial to analyse stress in wild rodents.
+keywords:
+  - rodent
+  - Maxomys surifer
+  - cortisol
+  - cmr (capture, mark, recapture)
+license: "CC BY"
+copyright: 
+  holder: HealthDEEP / MUKA
+  year: 2025
+funding: "ANR rewild4Health"
+
+bibliography: bibliography.bib
+link-citations: true
+
+css: styles.css
+number-sections: false
+
+page-layout: article
+editor: visual
+
+format:
+  html: 
+    code-fold: true
+    html-math-method: katex
+---
+
+## Stress in rodents
+
+**Summary according to google AI:** In wild rodent populations, cortisol (or corticosterone in rodents) levels vary based on several factors, including age, sex, social status [@Schradin2008horm], and environmental conditions [@Beery2015neuro]. Levels can fluctuate seasonally, with breeding males often exhibiting lower corticosterone levels during the breeding season, while other classes show declines in corticosterone during periods of low food abundance. Furthermore, urban populations may experience different stress hormone profiles compared to rural populations [@Lopucki2029urban].
+
+**Factors Influencing Cortisol Levels:**
+
+*Age*: Cortisol levels can vary with age, with juveniles potentially showing different levels than adults.
+
+*Sex*: Studies have shown differences in cortisol levels between males and females.
+
+*Social Status*: In some species, subordinate animals may experience higher cortisol levels due to factors like social instability or limited social contact.
+
+*Seasonal Changes*: Corticosterone levels in some rodent species can fluctuate seasonally, with breeding females and non-breeding males and females showing a decline in levels during the non-breeding season.
+
+*Environmental Conditions*: Studies have shown that urban and rural populations may exhibit different stress hormone profiles, with urban populations sometimes having narrower ranges and lower median values.
+
+*Stressors*: Various stressors, such as capture, handling, and exposure to predators or competitors, can trigger acute increases in cortisol levels.
+
+*Reproductive Status*: Pregnancy and other reproductive events can also influence cortisol levels.
+
+## Analysis of stress level (cortisol) in *Maxomys surifer*
+
+Animals were trapped using living trap cages. Their feces were collected and prepared for estimating the level of cortisol.
+
+## Elisa technique
+
+### Read the file of OD measures for the calibration
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+data <- openxlsx::read.xlsx("/Users/serge/Documents/DATA/data_muka/muka_rodents/data_cortisol_ELISA/data microplate reader/data_calibration.xlsx") |>
+  dplyr::mutate(meanOD = (duplicate1 + duplicate2) / 2) |>
+  dplyr::mutate(netOD = meanOD - dplyr::first(meanOD)) |>
+  dplyr::mutate(BB0 = (netOD/dplyr::last(netOD))*100) |>
+  dplyr::mutate(meanOD = round(meanOD, 3),
+                netOD = round(netOD, 3),
+                BB0 = round(BB0, 2))
+```
+
+## Data calibration
+
+Concentrations of cortisol are in picogram / mL
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+DT::datatable(data, class = 'cell-border stripe',
+              caption = 'Table 1: "Data calibration for cortisol"',
+              options = list(columnDefs = 
+                               list(list(className = 'dt-center', 
+                                         targets = "_all"))))
+```
+
+### Fit a four-parameter logistic (4PL) model (using the library drc)
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+library(drc)
+model <- drc::drm(netOD ~ concentration, data = data, fct = LL.4())
+```
+
+# Summary of the model and plot the calibration cure
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+summary(model)
+plot(model)
+```
+
+## Lecture of samples
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+response <- readxl::read_excel("/Users/serge/Documents/DATA/data_muka/muka_rodents/data_cortisol_ELISA/data microplate reader/data_cortisol_individuals.xlsx") |>
+  dplyr::mutate(meanOD = (duplicate1 + duplicate2) / 2) |>
+  dplyr::mutate(netOD = meanOD - dplyr::first(data$meanOD)) |>
+  dplyr::mutate(BB0 = (netOD/dplyr::last(data$netOD))*100) |>
+  dplyr::mutate(meanOD = round(meanOD, 3),
+                netOD = round(netOD, 3),
+                BB0 = round(BB0, 2))
+
+DT::datatable(response, class = 'cell-border stripe',
+              caption = 'Table 2: "Data lecture of samples"',
+              options = list(columnDefs = 
+                               list(list(className = 'dt-center', 
+                                         targets = "_all"))))
+```
+
+## Estimation of the cortisol concentration
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+DOSEx<-ED(model,response$netOD,type="absolute",display=F)
+
+plot(model)
+points(y=response$netOD,x=DOSEx[,1],col="blue",pch=19,cex=2)
+#arrows(DOSEx[,1],response$netOD,DOSEx[,1]+DOSEx[,2]*1.96,response$netOD,length=0.1,angle=90,lwd=3,col="blue")
+#arrows(DOSEx[,1],response$netOD,DOSEx[,1]-DOSEx[,2]*1.96,response$netOD,length=0.1,angle=90,lwd=3,col="blue")
+```
+
+## Merging with data on individual rodents
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+data_merge <- cbind(response,DOSEx) |>
+  dplyr::left_join(readxl::read_excel("/Users/serge/Documents/DATA/data_muka/muka_rodents/Rodent_MUKA_database_20250731.xlsx",
+                                      sheet="trapRoudup")|>
+                     dplyr::select("id_indiv","trappingDate","trapID","session",
+                                   "id_grid_line",	"id_grid_line_deployement"),
+                   by = c("id_indiv","trappingDate")) |>
+  dplyr::left_join(readxl::read_excel("/Users/serge/Documents/DATA/data_muka/muka_rodents/Rodent_MUKA_database_20250731.xlsx",
+                                      sheet="Rodent_individuals")|>
+                     dplyr::select(id_indiv,trappingDate, sex, maturity, bodyWeight) |>
+                     dplyr::group_by(id_indiv) |>
+                     dplyr::filter(trappingDate == min(trappingDate)) |>
+                     dplyr::ungroup()|>
+                     dplyr::select(-trappingDate), 
+                   by= "id_indiv") |>
+    dplyr::left_join(readxl::read_excel("/Users/serge/Documents/DATA/data_muka/muka_rodents/Rodent_MUKA_database_20250731.xlsx",
+                                      sheet="Trap_locations")|>
+                     dplyr::select(trapID,id_grid_line_deployement,long,lat) , 
+                   by= c("trapID","id_grid_line_deployement")) |>
+  dplyr::left_join(read.csv("/Users/serge/Documents/DATA/data_muka/muka_rodents/pics_morphometrics/data.hindfoot.csv"),
+                                      by= "id_indiv") |>
+  dplyr::mutate(body_condition = bodyWeight / length_mm) |>
+  dplyr::mutate(body_condition = round(body_condition, 2),
+                length_mm = round(length_mm, 2),
+                Estimate = round(Estimate,0),
+                `Std. Error` = round(`Std. Error`,0)) 
+
+
+DT::datatable(data_merge, class = 'cell-border stripe',
+              caption = 'Table 3: "Data on individual rodents with estimated concentration of cortisol"',
+              options = list(columnDefs = 
+                               list(list(className = 'dt-center', 
+                                         targets = "_all"))))
+```
+
+## Estimating body mass index (BMI) by regression analysis
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+model_bd <- lm(bodyWeight ~ length_mm,data_merge)
+
+plot(effects::allEffects(model_bd),
+     col = 2,
+     ylab = "Body weight", 
+     #ylim = c(-1, 1),  
+     type = "response")
+
+bmi_res <- as.data.frame(resid(model_bd ))
+names(bmi_res) = c("bmi_res")
+
+data_merge <-  cbind(data_merge,bmi_res)
+```
+
+## Counting and adding the number of days since the first trapping (day 1) of each individual
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+data_merge <-  data_merge |>
+  dplyr::mutate(trappingDate = as.Date(trappingDate)) |>
+  dplyr::group_by(id_indiv) |>
+  dplyr::mutate(day = trappingDate - dplyr::first(trappingDate) +1) |>
+  dplyr::mutate(day = as.integer(day))
+
+DT::datatable(data_merge, class = 'cell-border stripe',
+              caption = 'Table 3: "Data on individual rodents with estimated concentration of cortisol"',
+              options = list(columnDefs = 
+                               list(list(className = 'dt-center', 
+                                         targets = "_all"))))
+```
+
+## General Linear Mixed Modeling (GLMM) explaining the level of fecal cortisol
+
+random factor = individuals (id_indiv) as several measures on the same individuals explanatory variables = number of days after the first recapture (day 1) sex BMI (residuals)
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+library(lme4)
+model <- glmer(Estimate ~ sex + day  + (1|id_indiv), data = data_merge)
+```
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+library(sjPlot)
+library(sjstats)
+library(sjlabelled)
+library(sjmisc)
+
+#plot_model(model, vline.color = "red",show.values = TRUE, value.offset = .3) + 
+#  theme_sjplot2() + 
+#  scale_color_sjplot("simply")
+
+tab_model(model, show.se = TRUE, show.std = TRUE, show.stat = TRUE,
+          show.aic = TRUE)
+
+```
+
+```{r}
+#| warning: false
+#| include: true
+
+
+library(effects)
+effects = allEffects(model)
+
+plot(effects,
+     #col = 3,
+     ylab = "Cortisol level", 
+     type = "response")
+```
+
+## Level estimate of cortisol per individual and by day after first recapture (day 1)
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+library(ggplot2)
+
+ggplot(data_merge, aes(x = day, y = Estimate)) +
+  geom_point(aes(colour = sex)) +
+  geom_line(color = "blue") +
+  facet_wrap( ~ id_indiv) +
+  theme_classic()
+```
+
+## Effect of location (grids)
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+# Kruskal Wallis Test One Way Anova by Ranks
+kruskal.test(Estimate ~ id_grid_line, data = data_merge |>
+               dplyr::filter(day == "1"))
+
+```
+
+## Effect of body mass index (BMI)
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+data <- data_merge |>
+               dplyr::filter(day == "1")
+
+cor.test(data$bmi_res, data$Estimate, method = "spearman")
+
+
+```
+
+### Distribution
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+library(leaflet)
+library(leafpop)
+
+map <-  leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers(data = data_merge,
+                   ~long, ~lat,
+                   label = ~ as.character(id_indiv),
+                   popup = popupTable(data_merge |>
+                                       dplyr::select(sex,Estimate,day)),
+                   fillColor = "blue", weight = 0.2,
+                   group = "Maxomys surifer",
+                   stroke = FALSE, fillOpacity = 0.4) %>%
+
+  addProviderTiles(providers$Esri.WorldStreetMap,group ="WSM") %>%
+  addTiles(group = "OSM") %>%
+  addTiles(urlTemplate = "https://mts1.google.com/vt/lyrs=s&hl=en&src=app&x={x}&y={y}&z={z}&s=G",
+           attribution = 'Google',group ="Google") %>%
+  addLayersControl(baseGroups = c("WSM","OSM","Google"),
+                   overlayGroups = c("Maxomys surifer"),
+                   options = layersControlOptions(collapsed = FALSE)) %>%
+  addScaleBar(position = "bottomright",
+              scaleBarOptions(maxWidth = 100, metric = TRUE, imperial = FALSE,
+                              updateWhenIdle = TRUE)) 
+
+map
+```
+
+### Summary for each individual with time since first trapping in the grid (in days) and home range (estimated area in square meters)
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+longevity_df <- readxl::read_excel("/Users/serge/Documents/DATA/data_muka/muka_rodents/Rodent_MUKA_database_20250731.xlsx",
+                                sheet="trapRoudup") |>
+  dplyr::filter(id_indiv %in% unique(data_merge$id_indiv)) |>
+  dplyr::group_by(id_indiv) |>
+  dplyr::summarise(
+    first_seen = min(trappingDate),
+    last_seen = max(trappingDate),
+    longevity_days = as.numeric(difftime(last_seen, first_seen, units = "days"))) |>
+  dplyr::arrange(desc(longevity_days)) |>
+  dplyr::left_join(data_merge |>
+                     dplyr::filter(day == "1") |>
+                     dplyr::select(id_indiv,id_grid_line,sex,bodyWeight, Estimate),
+                   by="id_indiv") |>
+  dplyr::rename(longevity = longevity_days,
+                grid = id_grid_line,
+                weight = bodyWeight) |>
+  dplyr::mutate(first_seen= as.Date(first_seen),
+                last_seen= as.Date(last_seen),
+                Estimate= round(Estimate, 1)) |>
+  dplyr::left_join(read.csv("data_area_range.csv"), by = "id_indiv") |>
+  dplyr::mutate(area_sq_meters = round(area_sq_meters, 0)) |>
+  dplyr::rename(area = area_sq_meters,
+                cortisol = Estimate) |>
+  dplyr::relocate(cortisol, .after = last_col())
+
+DT::datatable(longevity_df, class = 'cell-border stripe',
+              caption = 'Table 4: "Individual longevity"',
+              options = list(columnDefs = 
+                               list(list(className = 'dt-center', 
+                                         targets = "_all"))))
+```
+
+## Effect of home range
+
+```{r}
+#| warning: false
+#| include: true
+#| 
+
+cor.test(longevity_df$area, longevity_df$cortisol, method = "spearman")
+
+```
+
+## References
+
+::: {#refs}
+:::

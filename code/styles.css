@@ -1,0 +1,37 @@
+.resized-image {
+    width: 400px;
+    height: auto; /* Maintain aspect ratio */
+}
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto
+  width: 50%;
+}
+.centered-image { 
+    width: 400px;
+    height: auto;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center; 
+}
+#references { font-size: 16px; /* Change this value to your desired size */ }
+h1 { font-size: 30px; color: black; }
+h2 { font-size: 26px; color: black; }
+h3 { font-size: 24px; color: black; }
+p { font-size: 16px; color: black; line-height: 1.5; margin-bottom: 20px; line-height: 1.6; text-align: justify; }
+figure {
+  float: centered-image;
+  text-align: center;
+  font-size: smaller;
+  text-indent: 0;
+  # border: thin silver solid;
+  # color: grey;
+  margin: 0.5em;
+  padding: 0.5em;
+}
+table {
+  font-size: 14px; /* Adjust the font size */
+  font-family: "Arial", sans-serif; /* Set a custom font */
+}
